@@ -5,6 +5,16 @@ class ScrapingsController < ApplicationController
   def index
     url = params[:url]
     
+    uri = URI.parse(url)
+    request = Net::HTTP::Get.new(uri)
+    request["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+
+    response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+      http.request(request)
+    end
+
+    page = Nokogiri::HTML(response.body)
+    
     # Abre a página com open-uri
     page = Nokogiri::HTML(URI.open(url))
     
