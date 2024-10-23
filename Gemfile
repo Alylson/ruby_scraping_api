@@ -74,3 +74,9 @@ gem 'rack-cors'
 gem 'nokogiri'
 
 gem 'mysql2', '>= 0.5'
+
+gem 'puppeteer-ruby'
+
+gem 'faraday'
+
+gem 'dotenv-rails', groups: [:development, :test]

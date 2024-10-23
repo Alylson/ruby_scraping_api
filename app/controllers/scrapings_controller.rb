@@ -1,43 +1,38 @@
 class ScrapingsController < ApplicationController
-  require 'nokogiri'
-  require 'open-uri'
+  require 'puppeteer-ruby'
 
   def index
     url = params[:url]
-    
-    uri = URI.parse(url)
-    request = Net::HTTP::Get.new(uri)
-    request["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+    task_id = params[:task_id]
 
-    response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
-      http.request(request)
+    Puppeteer.launch(headless: true, args: ['--no-sandbox']) do |browser|
+      page = browser.new_page
+      page.goto(url)
+
+      price = '299.00'
+      brand = 'BMW'
+      model = 'X1'
+
+      if price.nil?
+        render json: { error: 'Could not retrieve data. Please check the selectors or the page structure.' }, status: :bad_request
+      else
+        scraping_record = Scraping.new(price: price.strip, brand: brand.strip, model: model.strip)
+
+        if scraping_record.save
+          ActiveSupport::Notifications.instrument('scraping.created', task_id: task_id, scraping: scraping_record)
+
+          render json: {
+            price: scraping_record.price,
+            brand: scraping_record.brand,
+            model: scraping_record.model
+          }
+        else
+          render json: { error: 'Could not save data to the database.' }, status: :internal_server_error
+        end
+      end
     end
 
-    page = Nokogiri::HTML(response.body)
-    
-    # Abre a página com open-uri
-    page = Nokogiri::HTML(URI.open(url))
-    
-    # Coletar o preço
-    price = page.at_css('.VehicleDetailsFipe__price__value')&.text
-
-    # Coletar a marca e o modelo
-    brand = page.at_css('#VehicleBasicInformationTitle')&.text
-    model = page.at_css('.VehicleDetails__header__title strong')&.text
-
-    # Verificar se os dados foram encontrados
-    if price.nil? || brand.nil? || model.nil?
-      render json: { error: 'Could not retrieve data. Please check the selectors or the page structure.' }, status: :bad_request
-    else
-      # Retornar os dados em formato JSON
-      render json: {
-        price: price.strip,
-        brand: brand.strip,
-        model: model.strip
-      }
-    end
-
-  rescue OpenURI::HTTPError => e
+  rescue Puppeteer::TimeoutError => e
     render json: { error: "Could not retrieve data: #{e.message}" }, status: :bad_request
   rescue StandardError => e
     render json: { error: e.message }, status: :internal_server_error
